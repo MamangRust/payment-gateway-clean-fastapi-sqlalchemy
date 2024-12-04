@@ -47,6 +47,3 @@ def calculate_check_digit(number: str) -> int:
     return (10 - (sum_ % 10)) % 10
 
 
-# Example Usage
-if __name__ == "__main__":
-    print("Generated VCC:", random_vcc())

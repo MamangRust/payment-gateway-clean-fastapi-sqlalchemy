@@ -20,14 +20,18 @@ logger = get_logger()
 
 
 class UserService(IUserService):
-    def __init__(self, repository: IUserRepository, hashing: Hashing) -> None:
+    def __init__(
+        self,
+        repository: IUserRepository,
+        hashing: Hashing,
+    ) -> None:
         self.repository = repository
         self.hashing = hashing
 
     async def get_users(self) -> Union[ApiResponse[List[UserResponse]], ErrorResponse]:
         try:
             users = await self.repository.find_all()
-            user_responses = [UserResponse.from_dto(user) for user in users]
+            user_responses = UserResponse.from_dtos(users)
             return ApiResponse(
                 status="success",
                 message="Successfully retrieved users.",
@@ -43,6 +47,7 @@ class UserService(IUserService):
     async def find_by_id(
         self, id: int
     ) -> Union[ApiResponse[UserResponse], ErrorResponse]:
+
         try:
             user = await self.repository.find_by_id(id)
             if not user:
@@ -66,24 +71,28 @@ class UserService(IUserService):
         self, input: CreateUserRequest
     ) -> Union[ApiResponse[UserResponse], ErrorResponse]:
         try:
-            exists = await self.repository.find_by_email_exists(
-                email=input.email
-            ) 
+            exists = await self.repository.find_by_email_exists(email=input.email)
             if exists:
                 logger.error("Email already exists", email=input.email)
+
                 return ErrorResponse(
                     status="error",
                     message="Email already exists.",
                 )
 
+            if input.password != input.confirm_password:
+                raise ValidationError("Passwords do not match")
+
             hashed_password = await self.hashing.hash_password(input.password)
             input.password = hashed_password
+            input.noc_transfer = random_vcc()
 
-            user = await self.repository.create_user(input)
+            user = await self.repository.create_user(user=input)
+
             return ApiResponse(
                 status="success",
                 message="User created successfully.",
-                data=UserResponse.from_dtos(user),
+                data=UserResponse.from_dto(user),
             )
         except Exception as e:
             logger.error("Error creating user", error=str(e))
@@ -96,21 +105,25 @@ class UserService(IUserService):
         self, input: UpdateUserRequest
     ) -> Union[ApiResponse[UserResponse], ErrorResponse]:
         try:
-            user = await self.repository.find_by_id(input.user_id)
+            user = await self.repository.find_by_id(input.id)
             if not user:
                 return ErrorResponse(
                     status="error",
                     message="User with the specified ID does not exist.",
                 )
 
-            updated_user = await self.repository.update_user(input)
+            hashed_password = await self.hashing.hash_password(input.password)
+
+            input.password = hashed_password
+
+            updated_user = await self.repository.update_user(user=input)
             return ApiResponse(
                 status="success",
                 message="User updated successfully.",
                 data=UserResponse.from_dto(updated_user),
             )
         except Exception as e:
-            logger.error("Error updating user", user_id=input.user_id, error=str(e))
+            logger.error("Error updating user", user_id=input.id, error=str(e))
             return ErrorResponse(
                 status="error",
                 message="Internal Server Error.",
@@ -118,14 +131,14 @@ class UserService(IUserService):
 
     async def delete_user(self, id: int) -> Union[ApiResponse[None], ErrorResponse]:
         try:
-            user = await self.repository.find_by_id(id)
+            user = await self.repository.find_by_id(user_id=id)
             if not user:
                 return ErrorResponse(
                     status="error",
                     message="User with the specified ID does not exist.",
                 )
 
-            await self.repository.delete_user(id)
+            await self.repository.delete_user(user_id=id)
             return ApiResponse(
                 status="success",
                 message="User deleted successfully.",

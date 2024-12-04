@@ -13,57 +13,49 @@ class IWithdrawRepository(abc.ABC):
     """
 
     @abc.abstractmethod
-    async def find_all(self, session: Any) -> List[WithdrawRecordDTO]:
+    async def find_all(self) -> List[WithdrawRecordDTO]:
         """
         Retrieve all withdrawal records.
         """
         pass
 
     @abc.abstractmethod
-    async def find_by_id(self, session: Any, id: int) -> Optional[WithdrawRecordDTO]:
+    async def find_by_id(self, id: int) -> Optional[WithdrawRecordDTO]:
         """
         Find a withdrawal record by its ID.
         """
         pass
 
     @abc.abstractmethod
-    async def find_by_users(
-        self, session: Any, user_id: int
-    ) -> Optional[List[WithdrawRecordDTO]]:
+    async def find_by_users(self, user_id: int) -> Optional[List[WithdrawRecordDTO]]:
         """
         Find all withdrawal records associated with a given user ID.
         """
         pass
 
     @abc.abstractmethod
-    async def find_by_user(
-        self, session: Any, user_id: int
-    ) -> Optional[WithdrawRecordDTO]:
+    async def find_by_user(self, user_id: int) -> Optional[WithdrawRecordDTO]:
         """
         Find a single withdrawal record associated with a given user ID.
         """
         pass
 
     @abc.abstractmethod
-    async def create(
-        self, session: Any, input: CreateWithdrawRequest
-    ) -> WithdrawRecordDTO:
+    async def create(self, input: CreateWithdrawRequest) -> WithdrawRecordDTO:
         """
         Create a new withdrawal record from the given input.
         """
         pass
 
     @abc.abstractmethod
-    async def update(
-        self, session: Any, input: UpdateWithdrawRequest
-    ) -> WithdrawRecordDTO:
+    async def update(self, input: UpdateWithdrawRequest) -> WithdrawRecordDTO:
         """
         Update an existing withdrawal record based on the given input.
         """
         pass
 
     @abc.abstractmethod
-    async def delete(self, session: Any, id: int) -> None:
+    async def delete(self, id: int) -> None:
         """
         Delete a withdrawal record by its ID.
         """

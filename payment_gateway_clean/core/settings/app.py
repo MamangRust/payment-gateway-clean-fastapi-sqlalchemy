@@ -3,13 +3,13 @@ import logging
 from typing import Any
 from core.settings.base import BaseAppSettings
 
+
 class AppSettings(BaseAppSettings):
     debug: bool = False
     docs_url: str = "/"
     openapi_prefix: str = ""
     openapi_url: str = "/openapi.json"
     redoc_url: str = "/redoc"
-    
 
     jwt_secret_key: str
 
@@ -30,5 +30,4 @@ class AppSettings(BaseAppSettings):
             "openapi_prefix": self.openapi_prefix,
             "openapi_url": self.openapi_url,
             "redoc_url": self.redoc_url,
-         
         }

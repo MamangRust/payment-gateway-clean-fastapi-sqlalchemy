@@ -11,25 +11,38 @@ from domain.dtos.response.saldo import SaldoResponse
 
 logger = get_logger()
 
+
 class SaldoService(ISaldoService):
-    def __init__(self, user_repository: IUserRepository, saldo_repository: ISaldoRepository):
+    def __init__(
+        self,
+        user_repository: IUserRepository,
+        saldo_repository: ISaldoRepository,
+    ):
         self.user_repository = user_repository
         self.saldo_repository = saldo_repository
 
-    async def get_saldos(self) -> Union[ApiResponse[List[SaldoResponse]], ErrorResponse]:
+    async def get_saldos(
+        self,
+    ) -> Union[ApiResponse[List[SaldoResponse]], ErrorResponse]:
         try:
             saldo = await self.saldo_repository.find_all()
-            saldo_response = [SaldoResponse.from_dtos(s) for s in saldo]
+            saldo_response = SaldoResponse.from_dtos(saldo)
             return ApiResponse(
                 status="success",
                 message="Saldos retrieved successfully",
                 data=saldo_response,
             )
-        except Exception:
-            logger.error("Error retrieving saldos")
-            return ErrorResponse(status="error",message="An unexpected error occurred. Please try again later.")
+        except Exception as e:
 
-    async def get_saldo(self, id: int) -> Union[ApiResponse[Optional[SaldoResponse]], ErrorResponse]:
+            logger.error("Error retrieving saldos : {e}".format(e))
+            return ErrorResponse(
+                status="error",
+                message="An unexpected error occurred. Please try again later.",
+            )
+
+    async def get_saldo(
+        self, id: int
+    ) -> Union[ApiResponse[Optional[SaldoResponse]], ErrorResponse]:
         try:
             saldo = await self.saldo_repository.find_by_id(id)
             if saldo:
@@ -42,61 +55,72 @@ class SaldoService(ISaldoService):
                 raise NotFoundError(f"Saldo with id {id} not found")
         except AppError as e:
             logger.error("Error retrieving saldo", error=str(e))
-            raise NotFoundError("The requested saldo was not found.")
-        except Exception:
+            return ErrorResponse(
+                status="error", message="The requested saldo was not found."
+            )
+        except Exception as e:
             logger.error("Error retrieving saldo")
-            return ErrorResponse(status="error",message="An unexpected error occurred. Please try again later.")
+            return ErrorResponse(
+                status="error",
+                message="An unexpected error occurred. Please try again later.",
+            )
 
-    async def get_saldo_users(self, id: int) -> Union[ApiResponse[Optional[List[SaldoResponse]]], ErrorResponse]:
+    async def get_saldo_users(
+        self, id: int
+    ) -> Union[ApiResponse[Optional[List[SaldoResponse]]], ErrorResponse]:
         try:
             user = await self.user_repository.find_by_id(id)
             if not user:
-                raise AppError.not_found(f"User with id {id} not found")
-            
-            saldo = await self.saldo_repository.find_by_user_id(id)
-            saldo_responses = [SaldoResponse.from_dtos(s) for s in saldo] if saldo else None
+                raise NotFoundError(f"User with id {id} not found")
+
+            saldo = await self.saldo_repository.find_by_users_id(id)
+            saldo_responses = SaldoResponse.from_dtos(saldo)
 
             return ApiResponse(
                 status="success",
-                message=f"No saldo found for user with id {id}" if not saldo else "Success",
+                message=(
+                    f"No saldo found for user with id {id}" if not saldo else "Success"
+                ),
                 data=saldo_responses,
             )
         except AppError as e:
             logger.error("Error retrieving saldo for user", error=str(e))
-            return ErrorResponse(status="error",message="The requested user or saldo was not found.")
-        except Exception:
+            return ErrorResponse(
+                status="error", message="The requested user or saldo was not found."
+            )
+        except Exception as e:
             logger.error("Error retrieving saldo for user")
-            return ErrorResponse(status="error",message="An unexpected error occurred. Please try again later.")
+            return ErrorResponse(
+                status="error",
+                message="An unexpected error occurred. Please try again later.",
+            )
 
     async def get_saldo_user(
         self, id: int
     ) -> Union[ApiResponse[Optional[SaldoResponse]], ErrorResponse]:
-        # Check if the user exists
+
         try:
             user = await self.user_repository.find_by_id(id)
             if not user:
                 logger.error(f"User with id {id} not found")
-
-                raise NotFoundError(
-                    f"User with id {id} not found"
-                )
+                raise NotFoundError(f"User with id {id} not found")
         except Exception as e:
             logger.error(f"Error finding user with id {id}: {e}")
             return ErrorResponse(
-                status="error",
-                message=f"Error finding user with id {id}: {e}"
+                status="error", message=f"Error finding user with id {id}: {e}"
             )
 
         try:
             saldo_data = await self.saldo_repository.find_by_user_id(id)
             saldo = (
-                SaldoResponse.from_model(saldo_data)
-                if saldo_data is not None
-                else None
+                SaldoResponse.from_dto(saldo_data) if saldo_data is not None else None
             )
         except Exception as e:
             logger.error(f"Error retrieving saldo for user with id {id}: {e}")
-            return ErrorResponse(status="error", message=f"Error retrieving saldo for user with id {id}: {e}")
+            return ErrorResponse(
+                status="error",
+                message=f"Error retrieving saldo for user with id {id}: {e}",
+            )
 
         # Prepare and return the response
         if saldo is None:
@@ -114,37 +138,36 @@ class SaldoService(ISaldoService):
             data=saldo,
         )
 
-    async def create_saldo(self, input: CreateSaldoRequest) -> Union[ApiResponse[SaldoResponse], ErrorResponse]:
+    async def create_saldo(
+        self, input: CreateSaldoRequest
+    ) -> Union[ApiResponse[SaldoResponse], ErrorResponse]:
         try:
-            validation_err = input.validate()
-            if validation_err:
-                logger.error("Validation failed for saldo create", error=validation_err)
-                return ErrorResponse(error="Invalid input data. Please check your request and try again.")
-
             user = await self.user_repository.find_by_id(input.user_id)
             if not user:
                 raise AppError.not_found(f"User with id {input.user_id} not found")
 
             saldo = await self.saldo_repository.create(input)
-            return ApiResponse(
-                status="success",
-                message="Saldo created successfully",
-                data=SaldoResponse.from_dto(saldo),
-            )
+
         except AppError as e:
             logger.error("Error creating saldo", error=str(e))
-            return ErrorResponse(status="error",message="An error occurred while creating saldo. Please try again later.")
-        except Exception:
-            logger.error("Error creating saldo")
-            return ErrorResponse(error="An unexpected error occurred. Please try again later.")
+            return ErrorResponse(
+                status="error",
+                message="An error occurred while creating saldo. Please try again later.",
+            )
+        except Exception as e:
+            logger.error("Unexpected error", error=str(e))
+            return ErrorResponse(
+                status="error",
+                message="An unexpected error occurred. Please try again later.",
+            )
+        finally:
+            if producer:
+                await producer.stop()
 
-    async def update_saldo(self, input: UpdateSaldoRequest) -> Union[ApiResponse[Optional[SaldoResponse]], ErrorResponse]:
+    async def update_saldo(
+        self, input: UpdateSaldoRequest
+    ) -> Union[ApiResponse[Optional[SaldoResponse]], ErrorResponse]:
         try:
-            validation_err = input.validate()
-            if validation_err:
-                logger.error("Validation failed for saldo update", error=validation_err)
-                return ErrorResponse(status="error",message="Invalid input data. Please check your request and try again.")
-
             user = await self.user_repository.find_by_id(input.user_id)
             if not user:
                 raise NotFoundError(f"User with id {input.user_id} not found")
@@ -154,6 +177,7 @@ class SaldoService(ISaldoService):
                 raise NotFoundError(f"Saldo with id {input.saldo_id} not found")
 
             updated_saldo = await self.saldo_repository.update(input)
+            logger.info("Saldo updated successfully", saldo_id=input.saldo_id)
             return ApiResponse(
                 status="success",
                 message="Saldo updated successfully",
@@ -161,10 +185,16 @@ class SaldoService(ISaldoService):
             )
         except AppError as e:
             logger.error("Error updating saldo", error=str(e))
-            return ErrorResponse(status="error",message="An error occurred while updating saldo. Please try again later.")
-        except Exception:
+            return ErrorResponse(
+                status="error",
+                message="An error occurred while updating saldo. Please try again later.",
+            )
+        except Exception as e:
             logger.error("Error updating saldo")
-            return ErrorResponse(status="error",message="An unexpected error occurred. Please try again later.")
+            return ErrorResponse(
+                status="error",
+                message="An unexpected error occurred. Please try again later.",
+            )
 
     async def delete_saldo(self, id: int) -> Union[ApiResponse[None], ErrorResponse]:
         try:
@@ -172,11 +202,14 @@ class SaldoService(ISaldoService):
             if not user:
                 raise NotFoundError(f"User with id {id} not found")
 
+            # Check if the saldo exists for the user
             existing_saldo = await self.saldo_repository.find_by_user_id(user.user_id)
+
             if not existing_saldo:
                 raise NotFoundError(f"Saldo with id {id} not found")
 
             await self.saldo_repository.delete(existing_saldo.saldo_id)
+
             return ApiResponse(
                 status="success",
                 message="Saldo deleted successfully",
@@ -184,7 +217,13 @@ class SaldoService(ISaldoService):
             )
         except AppError as e:
             logger.error("Error deleting saldo", error=str(e))
-            return ErrorResponse(status="error",message="An error occurred while deleting saldo. Please try again later.")
-        except Exception:
-            logger.error("Error deleting saldo")
-            return ErrorResponse(status="error",message="An unexpected error occurred. Please try again later.")
+            return ErrorResponse(
+                status="error",
+                message="An error occurred while deleting saldo. Please try again later.",
+            )
+        except Exception as e:
+            logger.error("Unexpected error deleting saldo")
+            return ErrorResponse(
+                status="error",
+                message="An unexpected error occurred. Please try again later.",
+            )

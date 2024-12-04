@@ -19,17 +19,23 @@ logger = get_logger()
 
 
 class AuthService(IAuthService):
-    def __init__(self, repository: IUserRepository, hashing: Hashing, jwt_config: JwtConfig):
+    def __init__(
+        self, repository: IUserRepository, hashing: Hashing, jwt_config: JwtConfig
+    ):
         self.repository = repository
         self.hashing = hashing
         self.jwt_config = jwt_config
 
-    async def register_user(self, input: RegisterRequest) -> Union[ApiResponse[UserResponse], ErrorResponse]:
+    async def register_user(
+        self, input: RegisterRequest
+    ) -> Union[ApiResponse[UserResponse], ErrorResponse]:
         logger.info("Attempting to register user", email=input.email)
 
         try:
             # Check if email already exists
-            exists = await self.repository.find_by_email_exists(email=input.email)  # Ensure this is awaited
+            exists = await self.repository.find_by_email_exists(
+                email=input.email
+            )  # Ensure this is awaited
             if exists:
                 logger.error("Email already exists", email=input.email)
                 return ErrorResponse(
@@ -37,9 +43,7 @@ class AuthService(IAuthService):
                     message="Email already exists.",
                 )
 
-            # Hash password
             hashed_password = await self.hashing.hash_password(input.password)
-
 
             noc_transfer = random_vcc()
 
@@ -71,14 +75,15 @@ class AuthService(IAuthService):
                 message="Internal Server Error.",
             )
 
-
-    async def login_user(self, input: LoginRequest) -> Union[ApiResponse[str], ErrorResponse]:
+    async def login_user(
+        self, input: LoginRequest
+    ) -> Union[ApiResponse[str], ErrorResponse]:
         logger.info("Attempting to login user", email=input.email)
 
         try:
             # Find user by email
             user = await self.repository.find_by_email(email=input.email)
-            
+
             if not user:
                 logger.error("User not found", email=input.email)
                 return ErrorResponse(

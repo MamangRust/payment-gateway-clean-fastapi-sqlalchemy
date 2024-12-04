@@ -10,6 +10,7 @@ from domain.repository.saldo import ISaldoRepository
 from domain.service.saldo import ISaldoService
 
 from domain.dtos.request.withdraw import CreateWithdrawRequest, UpdateWithdrawRequest
+from domain.dtos.request.saldo import UpdateSaldoBalanceRequest
 
 from domain.dtos.response.api import ApiResponse, ErrorResponse
 from core.errors import AppError, NotFoundError, ValidationError
@@ -30,15 +31,16 @@ class WithdrawService(IWithdrawService):
         self.saldo_repository = saldo_repository
         self.withdraw_repository = withdraw_repository
 
-    async def get_withdraws(self) -> Union[ApiResponse[List[WithdrawResponse]], ErrorResponse]:
-        """
-        Retrieve all withdrawal records.
-        """
+    async def get_withdraws(
+        self,
+    ) -> Union[ApiResponse[List[WithdrawResponse]], ErrorResponse]:
         try:
             withdraws = await self.withdraw_repository.find_all()
-            withdraw_responses = [WithdrawResponse.from_dtos(w) for w in withdraws]
+            withdraw_responses = WithdrawResponse.from_dtos(withdraws)
 
-            logger.info(f"Successfully fetched {len(withdraw_responses)} withdrawals.")
+            logger.info(
+                f"Successfully fetched {len(withdraw_responses)} withdrawals."
+            )
             return ApiResponse(
                 status="success",
                 message="Withdrawals retrieved successfully.",
@@ -46,7 +48,10 @@ class WithdrawService(IWithdrawService):
             )
         except Exception as e:
             logger.error(f"Failed to fetch withdrawals: {str(e)}")
-            return ErrorResponse(status="error", message="An unexpected error occurred. Please try again later.")
+            return ErrorResponse(
+                status="error",
+                message="An unexpected error occurred. Please try again later.",
+            )
 
     async def get_withdraw(
         self, id: int
@@ -63,14 +68,13 @@ class WithdrawService(IWithdrawService):
                 )
             else:
                 logger.error(f"Withdrawal with ID {id} not found.")
-
-                raise NotFoundError(
-                    f"Withdrawal with ID {id} not found."
-                )
+                raise NotFoundError(f"Withdrawal with ID {id} not found.")
         except Exception as e:
             logger.error(f"Failed to retrieve withdrawal with ID {id}: {str(e)}")
-            return ErrorResponse(status="error",message="An unexpected error occurred. Please try again later.")
-
+            return ErrorResponse(
+                status="error",
+                message="An unexpected error occurred. Please try again later.",
+            )
 
     async def get_withdraw_users(
         self, user_id: int
@@ -79,11 +83,7 @@ class WithdrawService(IWithdrawService):
             user = await self.user_repository.find_by_id(user_id)
             if not user:
                 logger.error(f"User with ID {user_id} not found.")
-
-                return NotFoundError(
-                    f"User with ID {user_id} not found."
-                )
-
+                return NotFoundError(f"User with ID {user_id} not found.")
 
             # Retrieve withdrawals for the user
             withdrawals = await self.withdraw_repository.find_by_users(user_id)
@@ -95,242 +95,231 @@ class WithdrawService(IWithdrawService):
                     data=None,
                 )
 
-            # Map withdrawals to response DTOs
-            withdrawal_responses = [WithdrawResponse.from_dtos(w) for w in withdrawals]
+            withdrawal_responses = WithdrawResponse.from_dtos(withdrawals)
 
-
-            logger.info(f"Successfully retrieved withdrawals for user with ID {user_id}.")
-
+            logger.info(
+                f"Successfully retrieved withdrawals for user with ID {user_id}."
+            )
             return ApiResponse(
                 status="success",
                 message="Withdrawals retrieved successfully.",
                 data=withdrawal_responses,
             )
         except Exception as e:
-            logger.error(f"Failed to retrieve withdrawals for user with ID {user_id}: {str(e)}")
-            return ErrorResponse(status="error",message="An unexpected error occurred. Please try again later.")
+            logger.error(
+                f"Failed to retrieve withdrawals for user with ID {user_id}: {str(e)}"
+            )
+            return ErrorResponse(
+                status="error",
+                message="An unexpected error occurred. Please try again later.",
+            )
 
     async def get_withdraw_user(
         self, user_id: int
     ) -> Union[ApiResponse[Optional[WithdrawResponse]], ErrorResponse]:
         try:
-            # Check if the user exists
             user = await self.user_repository.find_by_id(user_id)
             if not user:
                 logger.error(f"User with ID {user_id} not found.")
+                raise NotFoundError(f"User with ID {user_id} not found.")
 
-                raise NotFoundError(
-                    f"User with ID {user_id} not found."
-                )
-
-
-            # Retrieve the withdrawal for the user
+          
             withdrawal = await self.withdraw_repository.find_by_user(user_id)
             if not withdrawal:
                 logger.info(f"No withdrawal found for user with ID {user_id}.")
-
-                raise NotFoundError(
-                    f"Withdrawal for user with ID {user_id} not found."
-                )
+                raise NotFoundError(f"Withdrawal for user with ID {user_id} not found.")
 
             # Map withdrawal to response DTO
             withdrawal_response = WithdrawResponse.from_dto(withdrawal)
-            logger.info(f"Successfully retrieved withdrawal for user with ID {user_id}.")
+            logger.info(
+                f"Successfully retrieved withdrawal for user with ID {user_id}."
+            )
+
             return ApiResponse(
                 status="success",
                 message="Withdrawal retrieved successfully.",
                 data=withdrawal_response,
             )
         except Exception as e:
-            logger.error(f"Failed to retrieve withdrawal for user with ID {user_id}: {str(e)}")
+            logger.error(
+                f"Failed to retrieve withdrawal for user with ID {user_id}: {str(e)}"
+            )
             return ErrorResponse(
                 status="error",
-                message=f"Failed to retrieve withdrawal for user with ID {user_id}"
+                message=f"Failed to retrieve withdrawal for user with ID {user_id}",
             )
 
     async def create_withdraw(
         self, input: CreateWithdrawRequest
     ) -> Union[ApiResponse[WithdrawResponse], ErrorResponse]:
-        logger.info(f"Creating withdraw for user_id: {input.user_id}")
-        # Validate the input
-        if not input.validate():
-            logger.error(f"Validation failed for withdraw create: {input}")
+        try:
+            logger.info(f"Creating withdraw for user_id: {input.user_id}")
 
-            raise ValidationError(
-                "Invalid input for withdrawal"
-            )
-        logger.info("Validation passed for withdraw creation")
+            # Check if the saldo exists for the user
+            saldo = await self.saldo_repository.find_by_user_id(input.user_id)
+            if not saldo:
+                logger.error(f"Saldo with user_id {input.user_id} not found")
+                raise NotFoundError(f"Saldo with user_id {input.user_id} not found")
 
-        # Check if the saldo exists for the user
-        saldo = await self.saldo_repository.find_by_user_id(input.user_id)
-        if not saldo:
-            logger.error(f"Saldo with user_id {input.user_id} not found")
+            # Check if the user has sufficient balance
+            if saldo.total_balance < input.withdraw_amount:
+                logger.error(
+                    f"Insufficient balance for user_id {input.user_id}. "
+                    f"Attempted withdrawal: {input.withdraw_amount}"
+                )
+                raise ValidationError("Insufficient balance")
 
-            raise NotFoundError(
-                f"Saldo with user_id {input.user_id} not found"
-            )
+            logger.info("User has sufficient balance for withdrawal")
+            # Deduct the withdraw amount from the user's balance
+            new_total_balance = saldo.total_balance - input.withdraw_amount
+            try:
+                await self.saldo_repository.update_saldo_withdraw(
+                    input=UpdateSaldoWithdraw(
+                        user_id=input.user_id,
+                        withdraw_amount=input.withdraw_amount,
+                        withdraw_time=datetime.utcnow(),
+                        total_balance=new_total_balance,
+                    )
+                )
+                logger.info(
+                    f"Saldo balance updated for user_id {input.user_id}. "
+                    f"New balance: {new_total_balance}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to update saldo balance: {e}")
+                return ErrorResponse(
+                    status="error", message=f"Failed to update saldo balance: {e}"
+                )
 
+            # Create the withdraw record
+            try:
+                withdraw_record = await self.withdraw_repository.create(input)
+                logger.info(
+                    f"Withdraw created successfully for user_id {input.user_id}"
+                )
 
-        # Check if the user has sufficient balance
-        if saldo.total_balance < input.withdraw_amount:
+                return ApiResponse(
+                    status="success",
+                    message="Withdraw created successfully",
+                    data=WithdrawResponse.from_dto(withdraw_record),
+                )
+            except Exception as e:
+                logger.error(f"Failed to create withdraw: {e}")
+                return ErrorResponse(
+                    status="error", message=f"Failed to create withdraw: {e}"
+                )
+        except Exception as e:
             logger.error(
-                f"Insufficient balance for user_id {input.user_id}. "
-                f"Attempted withdrawal: {input.withdraw_amount}"
+                f"Unexpected error while creating withdraw for user_id {input.user_id}: {str(e)}"
             )
-
-            raise ValidationError(
-                "Insufficient balance"
-            )
-
-        logger.info("User has sufficient balance for withdrawal")
-
-        # Deduct the withdraw amount from the user's balance
-        new_total_balance = saldo.total_balance - input.withdraw_amount
-        try:
-            await self.saldo_repository.update_saldo_withdraw(
-                user_id=input.user_id,
-                withdraw_amount=input.withdraw_amount,
-                withdraw_time=datetime.utcnow(),
-                total_balance=new_total_balance,
-            )
-            logger.info(
-                f"Saldo balance updated for user_id {input.user_id}. "
-                f"New balance: {new_total_balance}"
-            )
-        except Exception as e:
-            logger.error(f"Failed to update saldo balance: {e}")
             return ErrorResponse(
                 status="error",
-                message=f"Failed to update saldo balance: {e}"
+                message="An unexpected error occurred. Please try again later.",
             )
 
-        # Create the withdraw record
-        try:
-            withdraw_record = await self.withdraw_repository.create(input)
-            logger.info(
-                f"Withdraw created successfully for user_id {input.user_id}"
-            )
-            return ApiResponse(
-                status="success",
-                message="Withdraw created successfully",
-                data=WithdrawResponse.from_dto(withdraw_record),
-            )
-        except Exception as e:
-            logger.error(f"Failed to create withdraw: {e}")
-            return ErrorResponse(
-                status="error",
-                message=f"Failed to create withdraw: {e}"
-            )
-    
     async def update_withdraw(
         self, input: UpdateWithdrawRequest
     ) -> Union[ApiResponse[Optional[WithdrawResponse]], ErrorResponse]:
-        # Validate the input
-        if not input.validate():
-            logger.error(f"Validation failed for withdraw update: {input}")
 
-            raise ValidationError(
-                "Invalid input for withdrawal update"
-            )
-
-        # Check if the withdrawal exists
-        withdraw_record = await self.withdraw_repository.find_by_id(input.withdraw_id)
-        if not withdraw_record:
-            logger.error(f"Withdraw with id {input.withdraw_id} not found")
-
-
-            raise NotFoundError(
-                f"Withdraw with id {input.withdraw_id} not found"
-            )
-
-        # Fetch the user's saldo
-        saldo = await self.saldo_repository.find_by_user_id(input.user_id)
-        if not saldo:
-            logger.error(f"Saldo with user_id {input.user_id} not found")
-
-
-            raise NotFoundError(
-                f"Saldo with user_id {input.user_id} not found"
-            )
-
-        # Check if the new withdrawal amount can be updated within the current balance
-        new_total_balance = saldo.total_balance - input.withdraw_amount
-        if new_total_balance < 0:
-            logger.error(
-                f"Insufficient balance for user_id {input.user_id}. "
-                f"Attempted withdrawal: {input.withdraw_amount}"
-            )
-
-            raise ValidationError(
-                "Insufficient balance"
-            )
-
-
-        # Try updating the withdrawal record
         try:
-            updated_withdraw = await self.withdraw_repository.update(input)
-        except Exception as e:
-            # Rollback saldo if the withdrawal update fails
-            await self.saldo_repository.update_saldo_withdraw(
-                user_id=input.user_id,
-                withdraw_amount=None,
-                withdraw_time=None,
-                total_balance=saldo.total_balance,
+            withdraw_record = await self.withdraw_repository.find_by_id(
+                input.withdraw_id
             )
-            logger.error(f"Rollback: Saldo reverted due to withdraw update failure: {e}")
+            if not withdraw_record:
+                logger.error(f"Withdraw with id {input.withdraw_id} not found")
+                raise NotFoundError(f"Withdraw with id {input.withdraw_id} not found")
+
+            # Fetch the user's saldo
+            saldo = await self.saldo_repository.find_by_user_id(input.user_id)
+            if not saldo:
+                logger.error(f"Saldo with user_id {input.user_id} not found")
+                raise NotFoundError(f"Saldo with user_id {input.user_id} not found")
+
+            # Check if the new withdrawal amount can be updated within the current balance
+            new_total_balance = saldo.total_balance - input.withdraw_amount
+            if new_total_balance < 0:
+                logger.error(
+                    f"Insufficient balance for user_id {input.user_id}. "
+                    f"Attempted withdrawal: {input.withdraw_amount}"
+                )
+                raise ValidationError("Insufficient balance")
+
+            try:
+                updated_withdraw = await self.withdraw_repository.update(input)
+            except Exception as e:
+                await self.saldo_repository.update_balance(
+                    input=UpdateSaldoBalanceRequest(
+                        user_id=input.user_id,
+                        total_balance=saldo.total_balance,
+                    )
+                )
+                logger.error(
+                    f"Rollback: Saldo reverted due to withdraw update failure: {e}"
+                )
+                return ErrorResponse(
+                    status="error",
+                    message=f"Rollback: Saldo reverted due to withdraw update failure",
+                )
+
+            try:
+                await self.saldo_repository.update_saldo_withdraw(
+                    input=UpdateSaldoWithdraw(
+                        user_id=input.user_id,
+                        withdraw_amount=input.withdraw_amount,
+                        withdraw_time=datetime.utcnow(),
+                        total_balance=new_total_balance,
+                    )
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to update saldo balance after withdrawal update: {e}"
+                )
+                return ErrorResponse(
+                    status="error",
+                    message=f"Failed to update saldo balance after withdrawal update",
+                )
+
+            logger.info(
+                f"Withdraw updated successfully for withdraw_id {input.withdraw_id}"
+            )
+
+            return ApiResponse(
+                status="success",
+                message="Withdraw updated successfully",
+                data=WithdrawResponse.from_dto(updated_withdraw),
+            )
+        except Exception as e:
+            logger.error(
+                f"Unexpected error while updating withdraw for withdraw_id {input.withdraw_id}: {str(e)}"
+            )
             return ErrorResponse(
                 status="error",
-                message=f"Rollback: Saldo reverted due to withdraw update failure"
+                message=f"Failed to update withdraw for withdraw_id {input.withdraw_id}",
             )
 
-        # Update the saldo to reflect the new withdrawal amount
-        try:
-            await self.saldo_repository.update_saldo_withdraw(
-                user_id=input.user_id,
-                withdraw_amount=input.withdraw_amount,
-                withdraw_time=datetime.utcnow(),
-                total_balance=new_total_balance,
-            )
-        except Exception as e:
-            logger.error(
-                f"Failed to update saldo balance after withdrawal update: {e}"
-            )
-            return ErrorResponse(
-                status="error",
-                message= f"Failed to update saldo balance after withdrawal update"
-            )
-
-        logger.info(f"Withdraw updated successfully for withdraw_id {input.withdraw_id}")
-        return ApiResponse(
-            status="success",
-            message="Withdraw updated successfully",
-            data=WithdrawResponse.from_dto(updated_withdraw),
-        )
-    
     async def delete_withdraw(self, id: int) -> Union[ApiResponse[None], ErrorResponse]:
-
-        existing_withdraw = await self.withdraw_repository.find_by_id(id)
-        if not existing_withdraw:
-            logger.error(f"Withdraw with id {id} not found")
-
-
-            raise NotFoundError(
-                f"Withdraw with id {id} not found"
-            )
-
         try:
-            await self.withdraw_repository.delete(id)
-            logger.info(f"Withdraw deleted successfully for id: {id}")
-        except Exception as e:
-            logger.error(f"Error deleting withdraw with id {id}: {e}")
-            return ErrorResponse(
-                status="error",
-                message=f"Error deleting withdraw with id {id}"
-            )
+            existing_withdraw = await self.withdraw_repository.find_by_id(id)
+            if not existing_withdraw:
+                logger.error(f"Withdraw with id {id} not found")
+                raise NotFoundError(f"Withdraw with id {id} not found")
 
-        # Return a success response
-        return ApiResponse(
-            status="success",
-            message="Withdraw deleted successfully",
-            data=None,
-        )
+            # Attempt to delete the withdraw record
+            try:
+                await self.withdraw_repository.delete(id)
+                logger.info(f"Withdraw deleted successfully for id: {id}")
+            except Exception as e:
+                logger.error(f"Error deleting withdraw with id {id}: {e}")
+                return ErrorResponse(
+                    status="error", message=f"Error deleting withdraw with id {id}"
+                )
+
+            return ApiResponse(
+                status="success",
+                message="Withdraw deleted successfully",
+                data=None,
+            )
+        except Exception as e:
+            return ErrorResponse(
+                status="error", message=f"Failed to delete withdraw with id {id}"
+            )

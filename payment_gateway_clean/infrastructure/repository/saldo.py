@@ -11,101 +11,105 @@ from infrastructure.models.main import Saldo
 from datetime import datetime
 
 class SaldoRepository(ISaldoRepository):
-    async def find_all(self, session: AsyncSession) -> List[SaldoRecordDTO]:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def find_all(self) -> List[SaldoRecordDTO]:
         """
         Retrieve all saldo records.
         """
-        result = await session.execute(select(Saldo))
-        saldos = result.scalars().all()
-        return [SaldoRecordDTO.from_orm(saldo) for saldo in saldos]
+        try:
+           
+            result = await self.session.execute(select(Saldo))
+            saldos = result.scalars().all()
+            return [SaldoRecordDTO.from_orm(saldo) for saldo in saldos]
+        finally:
+            await self.session.close()
 
-    async def find_by_id(self, session: AsyncSession, id: int) -> Optional[SaldoRecordDTO]:
+    async def find_by_id(self, id: int) -> Optional[SaldoRecordDTO]:
         """
         Find a saldo record by its ID.
         """
-        result = await session.execute(select(Saldo).filter(Saldo.id == id))
+        result = await self.session.execute(select(Saldo).filter(Saldo.saldo_id == id))
         saldo = result.scalars().first()
         return SaldoRecordDTO.from_orm(saldo) if saldo else None
 
-    async def find_by_users_id(self, session: AsyncSession, id: int) -> List[Optional[SaldoRecordDTO]]:
+    async def find_by_users_id(self, id: int) -> List[Optional[SaldoRecordDTO]]:
         """
         Find all saldo records associated with a given user ID.
         """
-        result = await session.execute(select(Saldo).filter(Saldo.user_id == id))
+        result = await self.session.execute(select(Saldo).filter(Saldo.user_id == id))
         saldos = result.scalars().all()
         return [SaldoRecordDTO.from_orm(saldo) for saldo in saldos]
 
-    async def find_by_user_id(self, session: AsyncSession, id: int) -> Optional[SaldoRecordDTO]:
+    async def find_by_user_id(self, id: int) -> Optional[SaldoRecordDTO]:
         """
         Find a single saldo record associated with a given user ID.
         """
-        result = await session.execute(select(Saldo).filter(Saldo.user_id == id))
+        result = await self.session.execute(select(Saldo).filter(Saldo.user_id == id))
         saldo = result.scalars().first()
         return SaldoRecordDTO.from_orm(saldo) if saldo else None
 
-    async def create(self, session: AsyncSession, input: CreateSaldoRequest) -> SaldoRecordDTO:
+    async def create(self, input: CreateSaldoRequest) -> SaldoRecordDTO:
         """
         Create a new saldo record from the given input.
         """
         new_saldo = Saldo(
             user_id=input.user_id,
-            balance=input.balance,
+            total_balance=input.total_balance,
             created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            updated_at=datetime.utcnow(),
         )
-        session.add(new_saldo)
-        await session.commit()
-        await session.refresh(new_saldo)
+        self.session.add(new_saldo)
+        await self.session.commit()
+        await self.session.refresh(new_saldo)
         return SaldoRecordDTO.from_orm(new_saldo)
 
-    async def update(self, session: AsyncSession, input: UpdateSaldoRequest) -> SaldoRecordDTO:
+    async def update(self, input: UpdateSaldoRequest) -> SaldoRecordDTO:
         """
         Update an existing saldo record based on the given input.
         """
-        result = await session.execute(
+        result = await self.session.execute(
             update(Saldo)
-            .where(Saldo.id == input.id)
+            .where(Saldo.saldo_id == input.saldo_id)
             .values(
                 user_id=input.user_id,
-                balance=input.balance,
-                updated_at=datetime.utcnow()
+                total_balance=input.total_balance,
+                updated_at=datetime.utcnow(),
             )
             .returning(Saldo)
         )
         updated_saldo = result.scalars().first()
         if updated_saldo:
-            await session.commit()
-            await session.refresh(updated_saldo)
+            await self.session.commit()
+            await self.session.refresh(updated_saldo)
             return SaldoRecordDTO.from_orm(updated_saldo)
         else:
             raise ValueError("Saldo record not found")
 
-    async def update_balance(self, session: AsyncSession, input: UpdateSaldoBalanceRequest) -> SaldoRecordDTO:
+    async def update_balance(self, input: UpdateSaldoBalanceRequest) -> SaldoRecordDTO:
         """
         Update the balance of an existing saldo record.
         """
-        result = await session.execute(
+        result = await self.session.execute(
             update(Saldo)
-            .where(Saldo.id == input.id)
-            .values(
-                balance=input.balance,
-                updated_at=datetime.utcnow()
-            )
+            .where(Saldo.user_id == input.user_id)
+            .values(total_balance=input.total_balance, updated_at=datetime.utcnow())
             .returning(Saldo)
         )
         updated_saldo = result.scalars().first()
         if updated_saldo:
-            await session.commit()
-            await session.refresh(updated_saldo)
+            await self.session.commit()
+            await self.session.refresh(updated_saldo)
             return SaldoRecordDTO.from_orm(updated_saldo)
         else:
             raise ValueError("Saldo record not found")
 
-    async def delete(self, session: AsyncSession, id: int) -> None:
+    async def delete(self, id: int) -> None:
         """
         Delete a saldo record by its ID.
         """
-        result = await session.execute(delete(Saldo).where(Saldo.id == id))
+        result = await self.session.execute(delete(Saldo).where(Saldo.saldo_id == id))
         if result.rowcount == 0:
             raise ValueError("Saldo record not found")
-        await session.commit()
+        await self.session.commit()

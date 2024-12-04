@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 from sqlalchemy import URL
 
 
-class AppEnyTypes:
+class AppEnvTypes:
     production : str = "prod"
     development: str = "dev"
     testing: str = "test"
@@ -11,7 +11,7 @@ class AppEnyTypes:
 
 
 class BaseAppSettings(BaseSettings):
-    app_env: str = AppEnyTypes.production
+    app_env: str = AppEnvTypes.production
 
     postgres_host: str
     postgres_port: int
