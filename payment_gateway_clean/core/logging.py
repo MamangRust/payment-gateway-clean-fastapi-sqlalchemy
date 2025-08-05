@@ -1,38 +1,30 @@
 import logging
-
 import structlog
 from structlog.typing import EventDict, Processor
-
 from core.config import get_app_settings
 
 __all__ = ["configure_logger"]
 
 DEFAULT_LOGGER_NAME = "payment-gateway-api"
 
-settings = get_app_settings()
 
 def rename_event_key(_: logging.Logger, __: str, event_dict: EventDict) -> EventDict:
-    """
-    Rename `event` field to `message`.
-    """
-    event_dict["message"] = event_dict.pop("event")
+    """Rename 'event' key to 'message' for consistency in JSON logs."""
+    event_dict["message"] = event_dict.pop("event", "")
     return event_dict
 
 
-def drop_color_message_key(
-    _: logging.Logger, __: str, event_dict: EventDict
-) -> EventDict:
-    """
-    Uvicorn logs the message a second time in the extra `color_message`, but we don't
-    need it.
-    This processor drops the key from the event dict if it exists.
-    """
+def drop_color_message_key(_: logging.Logger, __: str, event_dict: EventDict) -> EventDict:
+    """Drop unnecessary 'color_message' key from uvicorn logs."""
     event_dict.pop("color_message", None)
     return event_dict
 
 
 def configure_logger(json_logs: bool = False) -> None:
-    timestamper = structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M:%S")
+    """
+    Configure the root logger using structlog with support for structured JSON logs.
+    """
+    timestamper = structlog.processors.TimeStamper(fmt="%Y-%m-%d %H:%M:%S", utc=False)
 
     shared_processors: list[Processor] = [
         structlog.contextvars.merge_contextvars,
@@ -46,16 +38,18 @@ def configure_logger(json_logs: bool = False) -> None:
     ]
 
     if json_logs:
-        # We rename the `event` key to `message` only in JSON logs.
-        shared_processors.append(rename_event_key)
-        # Format the exception only for JSON logs, as we want to pretty-print them when
-        # using the ConsoleRenderer.
-        shared_processors.append(structlog.processors.format_exc_info)
+        shared_processors += [
+            rename_event_key,
+            structlog.processors.format_exc_info,
+        ]
 
     structlog.configure(
-        processors=shared_processors
-        + [structlog.stdlib.ProcessorFormatter.wrap_for_formatter],
+        processors=[
+            *shared_processors,
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ],
         logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
         cache_logger_on_first_use=True,
     )
 
@@ -65,37 +59,38 @@ def configure_logger(json_logs: bool = False) -> None:
         else structlog.dev.ConsoleRenderer()
     )
 
-    _configure_default_logging_by_custom(shared_processors, log_renderer)
+    _configure_root_logger(shared_processors, log_renderer)
 
 
-def _configure_default_logging_by_custom(
+def _configure_root_logger(
     shared_processors: list[Processor], log_renderer: structlog.types.Processor
 ) -> None:
-    # Use `ProcessorFormatter` to format all `logging` entries.
+    """
+    Sets up the root Python logger with structlog formatting.
+    """
     formatter = structlog.stdlib.ProcessorFormatter(
         foreign_pre_chain=shared_processors,
         processors=[
-            # Remove _record & _from_structlog.
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
             log_renderer,
         ],
     )
 
     handler = logging.StreamHandler()
-    # Use structlog `ProcessorFormatter` to format all `logging` entries.
     handler.setFormatter(formatter)
 
+    root_logger = logging.getLogger()
+    if root_logger.hasHandlers():
+        root_logger.handlers.clear()
+
+    root_logger.addHandler(handler)
+
+    settings = get_app_settings()
+    root_logger.setLevel(settings.logging_level)
 
     logging.getLogger("asyncio").setLevel(logging.WARNING)
 
-    # Set logging level.
-    root_logger = logging.getLogger()
-    root_logger.addHandler(handler)
-    root_logger.setLevel(settings.logging_level)
-
-    for _log in ["uvicorn", "uvicorn.error", "uvicorn.access"]:
-        # Clear the log handlers for uvicorn loggers, and enable propagation
-        # so the messages are caught by our root logger and formatted correctly
-        # by structlog.
-        logging.getLogger(_log).handlers.clear()
-        logging.getLogger(_log).propagate = True
+    for log_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        uvicorn_logger = logging.getLogger(log_name)
+        uvicorn_logger.handlers.clear()
+        uvicorn_logger.propagate = True

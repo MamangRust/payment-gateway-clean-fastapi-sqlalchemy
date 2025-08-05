@@ -16,8 +16,11 @@ environments: dict[str, type[AppEnvType]] = {
 
 @lru_cache
 def get_app_settings() -> AppSettings:
-    app_env = BaseAppSettings().app_env
+    base_settings = BaseAppSettings()
+    app_env = base_settings.app_env
 
-    app_env = BaseAppSettings().app_env
-    config = environments[app_env]
-    return config() 
+    if app_env not in environments:
+        raise ValueError(f"Invalid app_env: {app_env}")
+
+    config_class = environments[app_env]
+    return config_class()

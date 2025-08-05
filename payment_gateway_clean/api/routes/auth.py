@@ -18,7 +18,7 @@ async def register_user(
     try:
         user = await auth_service.register_user(request)
 
-        if isinstance(response, ErrorResponse):
+        if isinstance(user, ErrorResponse):
             raise HTTPException(status_code=400, detail="Failed to create user")
 
         return user
@@ -31,13 +31,12 @@ async def login_user(
 ):
     try:
         user = await auth_service.login_user(request)
-        
+
         if isinstance(user, ErrorResponse):
             raise HTTPException(status_code=404, detail="User not found or login failed")
-        
+
         return user
     except Exception as e:
-        # Raise HTTPException for any unexpected errors
         raise HTTPException(status_code=500, detail="An error occurred during login")
 
 
@@ -49,10 +48,10 @@ async def me(
     try:
         jwt_user = container.get_jwt().verify_token(token=token)
         current_user = await user_service.find_by_id(id=jwt_user)
-        
+
         if isinstance(current_user, ErrorResponse):
             raise HTTPException(status_code=404, detail="User not found")
-        
+
         return current_user
     except Exception as e:
         raise HTTPException(status_code=500, detail="An error occurred while fetching user information")

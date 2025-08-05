@@ -1,6 +1,7 @@
 import uvicorn
 
 from fastapi import FastAPI
+from structlog import get_logger
 from starlette.middleware.cors import CORSMiddleware
 
 from api.middleware.ratelimiter import RateLimitMiddleware
@@ -12,6 +13,10 @@ from core.config import get_app_settings
 
 def create_app() -> FastAPI:
     settings = get_app_settings()
+
+    logger = get_logger()
+
+    logger.info(f"Starting app with environment: {settings.app_env}")
 
     application = FastAPI(**settings.fastapi_kwargs)
 
@@ -34,5 +39,4 @@ def create_app() -> FastAPI:
 app = create_app()
 
 if __name__ == "__main__":
-    # Run the application with uvicorn
     uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)

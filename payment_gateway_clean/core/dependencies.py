@@ -61,7 +61,6 @@ async def get_current_user(
     token: str = Depends(token_security),
     user_service = Depends(get_user_service),
 ):
-    print("hello dota {}".format(token))
     jwt_user = JwtConfig.verify_token(token)
 
     current_user = await user_service.find_by_id(id=jwt_user)
