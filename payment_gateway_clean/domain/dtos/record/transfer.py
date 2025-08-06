@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from datetime import datetime
 
+
 class TransferRecordDTO(BaseModel):
     transfer_id: int
     transfer_from: int
@@ -12,5 +13,3 @@ class TransferRecordDTO(BaseModel):
 
     class Config:
         orm_mode = True
-
-        

@@ -17,8 +17,8 @@ class HTTPTokenHeader(APIKeyHeader):
         if not api_key:
             if not self.raise_error:
                 return ""
-            
-            return HTTPException(
+
+            raise HTTPException(
                 status_code=HTTP_403_FORBIDDEN,
                 detail="Missing authorization credentials",
             )
@@ -27,15 +27,13 @@ class HTTPTokenHeader(APIKeyHeader):
             token_prefix, token = api_key.split(" ")
         except ValueError:
             raise HTTPException(
-                status_code=HTTP_403_FORBIDDEN,
-                detail="Invalid token schema"
+                status_code=HTTP_403_FORBIDDEN, detail="Invalid token schema"
             )
-        
 
         if token_prefix.lower() != "token":
             raise HTTPException(
-                status_code=HTTP_403_FORBIDDEN,
-                detail="Invalid token schema"
+                status_code=HTTP_403_FORBIDDEN, detail="Invalid token schema"
             )
-        
+
         return token
+

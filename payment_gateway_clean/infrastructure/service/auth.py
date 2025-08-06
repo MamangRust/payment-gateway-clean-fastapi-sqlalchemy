@@ -1,4 +1,3 @@
-from sqlalchemy.ext.asyncio import AsyncSession
 from structlog import get_logger
 from typing import Union
 
@@ -10,8 +9,8 @@ from domain.dtos.request.auth import RegisterRequest, LoginRequest
 from domain.dtos.request.user import CreateUserRequest
 from domain.dtos.response.api import ApiResponse, ErrorResponse
 from domain.dtos.response.user import UserResponse
-from core.utils.random_vcc import random_vcc
 
+from core.utils.random_vcc import random_vcc
 from core.errors import InvalidCredentialsError
 
 
@@ -32,10 +31,7 @@ class AuthService(IAuthService):
         logger.info("Attempting to register user", email=input.email)
 
         try:
-            # Check if email already exists
-            exists = await self.repository.find_by_email_exists(
-                email=input.email
-            )  # Ensure this is awaited
+            exists = await self.repository.find_by_email_exists(email=input.email)
             if exists:
                 logger.error("Email already exists", email=input.email)
                 return ErrorResponse(
@@ -47,7 +43,6 @@ class AuthService(IAuthService):
 
             noc_transfer = random_vcc()
 
-            # Create user request object
             request = CreateUserRequest(
                 firstname=input.firstname,
                 lastname=input.lastname,
@@ -57,8 +52,8 @@ class AuthService(IAuthService):
                 confirm_password=input.confirm_password,
             )
 
-            # Create user in repository
             logger.info("Creating user", email=input.email)
+
             create_user = await self.repository.create_user(user=request)
 
             logger.info("User registered successfully", email=input.email)
@@ -81,7 +76,6 @@ class AuthService(IAuthService):
         logger.info("Attempting to login user", email=input.email)
 
         try:
-            # Find user by email
             user = await self.repository.find_by_email(email=input.email)
 
             if not user:
@@ -91,10 +85,8 @@ class AuthService(IAuthService):
                     message="Invalid credentials.",
                 )
 
-            # Compare passwords
             await self.hashing.compare_password(user.password, input.password)
 
-            # Generate token
             token = self.jwt_config.generate_token(user.user_id)
 
             logger.info("User logged in successfully", email=input.email)

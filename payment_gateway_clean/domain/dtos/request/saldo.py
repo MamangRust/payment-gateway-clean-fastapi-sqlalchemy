@@ -16,7 +16,6 @@ class UpdateSaldoRequest(BaseModel):
     withdraw_time: Optional[datetime]
 
 
-
 class UpdateSaldoBalanceRequest(BaseModel):
     total_balance: int
     user_id: int

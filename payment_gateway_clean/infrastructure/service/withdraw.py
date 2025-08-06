@@ -1,20 +1,18 @@
 from typing import List, Optional, Union
 from sqlalchemy.ext.asyncio import AsyncSession
 from structlog import get_logger
-from domain.repository.user import IUserRepository
 
+from domain.repository.user import IUserRepository
 from domain.repository.withdraw import IWithdrawRepository
 from domain.service.withdraw import IWithdrawService
-
 from domain.repository.saldo import ISaldoRepository
 from domain.service.saldo import ISaldoService
-
 from domain.dtos.request.withdraw import CreateWithdrawRequest, UpdateWithdrawRequest
 from domain.dtos.request.saldo import UpdateSaldoBalanceRequest
-
 from domain.dtos.response.api import ApiResponse, ErrorResponse
-from core.errors import AppError, NotFoundError, ValidationError
 from domain.dtos.response.withdraw import WithdrawResponse
+
+from core.errors import AppError, NotFoundError, ValidationError
 
 
 logger = get_logger()
@@ -38,9 +36,7 @@ class WithdrawService(IWithdrawService):
             withdraws = await self.withdraw_repository.find_all()
             withdraw_responses = WithdrawResponse.from_dtos(withdraws)
 
-            logger.info(
-                f"Successfully fetched {len(withdraw_responses)} withdrawals."
-            )
+            logger.info(f"Successfully fetched {len(withdraw_responses)} withdrawals.")
             return ApiResponse(
                 status="success",
                 message="Withdrawals retrieved successfully.",
@@ -85,8 +81,8 @@ class WithdrawService(IWithdrawService):
                 logger.error(f"User with ID {user_id} not found.")
                 return NotFoundError(f"User with ID {user_id} not found.")
 
-            # Retrieve withdrawals for the user
             withdrawals = await self.withdraw_repository.find_by_users(user_id)
+
             if not withdrawals:
                 logger.info(f"No withdrawals found for user with ID {user_id}.")
                 return ApiResponse(
@@ -123,13 +119,11 @@ class WithdrawService(IWithdrawService):
                 logger.error(f"User with ID {user_id} not found.")
                 raise NotFoundError(f"User with ID {user_id} not found.")
 
-          
             withdrawal = await self.withdraw_repository.find_by_user(user_id)
             if not withdrawal:
                 logger.info(f"No withdrawal found for user with ID {user_id}.")
                 raise NotFoundError(f"Withdrawal for user with ID {user_id} not found.")
 
-            # Map withdrawal to response DTO
             withdrawal_response = WithdrawResponse.from_dto(withdrawal)
             logger.info(
                 f"Successfully retrieved withdrawal for user with ID {user_id}."
@@ -155,13 +149,11 @@ class WithdrawService(IWithdrawService):
         try:
             logger.info(f"Creating withdraw for user_id: {input.user_id}")
 
-            # Check if the saldo exists for the user
             saldo = await self.saldo_repository.find_by_user_id(input.user_id)
             if not saldo:
                 logger.error(f"Saldo with user_id {input.user_id} not found")
                 raise NotFoundError(f"Saldo with user_id {input.user_id} not found")
 
-            # Check if the user has sufficient balance
             if saldo.total_balance < input.withdraw_amount:
                 logger.error(
                     f"Insufficient balance for user_id {input.user_id}. "
@@ -170,8 +162,9 @@ class WithdrawService(IWithdrawService):
                 raise ValidationError("Insufficient balance")
 
             logger.info("User has sufficient balance for withdrawal")
-            # Deduct the withdraw amount from the user's balance
+
             new_total_balance = saldo.total_balance - input.withdraw_amount
+
             try:
                 await self.saldo_repository.update_saldo_withdraw(
                     input=UpdateSaldoWithdraw(
@@ -191,9 +184,9 @@ class WithdrawService(IWithdrawService):
                     status="error", message=f"Failed to update saldo balance: {e}"
                 )
 
-            # Create the withdraw record
             try:
                 withdraw_record = await self.withdraw_repository.create(input)
+
                 logger.info(
                     f"Withdraw created successfully for user_id {input.user_id}"
                 )
@@ -229,14 +222,14 @@ class WithdrawService(IWithdrawService):
                 logger.error(f"Withdraw with id {input.withdraw_id} not found")
                 raise NotFoundError(f"Withdraw with id {input.withdraw_id} not found")
 
-            # Fetch the user's saldo
             saldo = await self.saldo_repository.find_by_user_id(input.user_id)
+
             if not saldo:
                 logger.error(f"Saldo with user_id {input.user_id} not found")
                 raise NotFoundError(f"Saldo with user_id {input.user_id} not found")
 
-            # Check if the new withdrawal amount can be updated within the current balance
             new_total_balance = saldo.total_balance - input.withdraw_amount
+
             if new_total_balance < 0:
                 logger.error(
                     f"Insufficient balance for user_id {input.user_id}. "
@@ -300,11 +293,11 @@ class WithdrawService(IWithdrawService):
     async def delete_withdraw(self, id: int) -> Union[ApiResponse[None], ErrorResponse]:
         try:
             existing_withdraw = await self.withdraw_repository.find_by_id(id)
+
             if not existing_withdraw:
                 logger.error(f"Withdraw with id {id} not found")
                 raise NotFoundError(f"Withdraw with id {id} not found")
 
-            # Attempt to delete the withdraw record
             try:
                 await self.withdraw_repository.delete(id)
                 logger.info(f"Withdraw deleted successfully for id: {id}")
